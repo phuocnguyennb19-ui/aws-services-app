@@ -1,40 +1,64 @@
-# ==============================================================================
-# MICROSERVICES APPLICATION CONFIGURATION (ECS Service)
-# ==============================================================================
+# apps.yml – example for an application container
+# ---------------------------------------------------
+# This file lives in:
+#   aws-application-infras/deployments/dev/services/apps.yml
+# It is consumed by the `ecs-service` module (key: `service`).
+# The mapping to Terraform locals is documented in
+#   terraform-module/config_variables_mapping.md.
+
 service:
-  enabled: true
-  app_name: "customer-api"
-  service_type: "api"
-  
-  # Compute Resources
-  cpu: 256
-  memory: 512
-  container_port: 8080
-  
-  # Scaling & Capacity
+  enabled: true                     # bật/ tắt service
+  app_name: "customer-api"          # tên ứng dụng, sẽ dùng làm prefix tài nguyên
+  service_type: "api"               # kiểu service (api, worker, cron, …)
+
+  # ------------------- Container image -------------------
+  image: "public.ecr.aws/your-repo/customer-api:{{image_tag}}"  # image + tag (tag được truyền từ engine)
+  repository: "your-repo"          # optional, dùng cho ECR repo name nếu muốn tạo repo tự động
+
+  # ------------------- Compute resources -------------------
+  cpu: 256                         # CPU units (256 = 0.25 vCPU)
+  memory: 512                      # MB
+  container_port: 8080             # port container sẽ expose
+
+  # ------------------- Autoscaling -------------------
   min_capacity: 1
-  max_capacity: 3
-  # desired_count: 1
-  # deployment_maximum_percent: 200
-  # deployment_minimum_healthy_percent: 100
+  max_capacity: 4
+  # desired_count: 2               # optional, nếu muốn cố định
+  # target_cpu_utilization: 70     # optional, dùng cho target tracking scaling
 
-  # Networking & Load Balancing
-  health_check_path: "/api/health"
-  # health_check_grace_period_seconds: 60
-  # deregistration_delay: 300
+  # ------------------- Networking -------------------
+  health_check_path: "/health"
+  health_check_grace_period: 60
   
-  # Task Definition Details
-  # entry_point: ["npm", "start"]
-  # command: []
-  # environment_variables:
-  #   NODE_ENV: "production"
-  #   DB_HOST: "rds-endpoint"
-  # secrets:
-  #   DB_PASSWORD: "arn:aws:secretsmanager:..."
+  # ------------------- Runtime & Deployment (Full-Spec) -------------------
+  enable_execute_command: true
+  force_new_deployment: false
+  deployment_maximum_percent: 200
+  deployment_minimum_healthy_percent: 100
 
-  # Service Storage
-  # mount_points: []
-  # volumes: []
+  # ------------------- Environment variables (Synchronized Keyword) -------------------
+  environment:
+    LOG_LEVEL: "info"
+    FEATURE_FLAG_X: "true"
 
-  # Deployment Strategy
-  deployment_strategy: "rolling_update" # "blue_green"
+  # ------------------- Secrets (AWS Secrets Manager) -------------------
+  secrets:
+    DB_PASSWORD: "arn:aws:secretsmanager:us-east-1:123456789012:secret:dev-db-pass-abc"
+    API_KEY: "arn:aws:secretsmanager:us-east-1:123456789012:secret:dev-api-key-def"
+
+  # ------------------- Task definition extras -------------------
+  entry_point: []                     # optional, nếu muốn override entrypoint
+  command: []                         # optional, nếu muốn override CMD
+  mount_points: []                    # optional, volume mounts
+  volumes: []                         # optional, EFS or Docker volumes
+
+  # ------------------- Deployment strategy -------------------
+  deployment_strategy: "rolling_update"   # hoặc "blue_green"
+  deployment_maximum_percent: 200          # chỉ dùng khi rolling_update
+  deployment_minimum_healthy_percent: 100   # chỉ dùng khi rolling_update
+
+  # ------------------- Tags (optional) -------------------
+  tags:
+    Owner: "dylan"
+    Environment: "dev"
+    Project: "SM-Platform"
