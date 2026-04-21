@@ -9,3 +9,9 @@ variable "common_config_path" {
   type        = string
   default     = "" # Optional
 }
+
+variable "image_tag" {
+  description = "Dynamic image tag for ECS services"
+  type        = string
+  default     = ""
+}

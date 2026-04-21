@@ -1,77 +1,140 @@
-name: "Smart Deploy - Multi-Env Orchestrator"
+name: "Prod CI/CD - Full Capacity Platform"
 
 on:
   push:
     branches: [ "master" ]
     paths:
       - 'deployments/**'
+      - 'src/**'
+
+# Ngăn chặn việc Deploy chồng chéo gây lỗi State Lock
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write # Bắt buộc để sử dụng OIDC
+  contents: read
 
 jobs:
+  # ----------------------------------------------------------------------------
+  # STAGE 1: IDENTIFY CHANGES
+  # ----------------------------------------------------------------------------
   detect:
-    name: "Identify Changed Service"
+    name: "Identify Target"
     runs-on: ubuntu-latest
     outputs:
       env: ${{ steps.parse.outputs.env }}
-      layer: ${{ steps.parse.outputs.layer }}
       service: ${{ steps.parse.outputs.service }}
-      le_path: ${{ steps.parse.outputs.le_path }}
+      file_path: ${{ steps.parse.outputs.file_path }}
+      has_changes: ${{ steps.parse.outputs.has_changes }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 2
-
-      - name: "Parse Changed Files"
-        id: parse
+      - id: parse
         run: |
-          # Lấy danh sách le thay đổi trong commit mới nhất
-          FILES=$(git diff --name-only HEAD^ HEAD | grep "deployments/" | grep ".yml")
-          
-          # Lấy le đầu tiên để xử lý (Giả sử 1 lần push 1 luồng)
-          FILE=$(echo $FILES | head -n 1)
-          
-          # Ví dụ path: deployments/dev/services/api.yml
-          ENV=$(echo $FILE | cut -d'/' -f2)
-          LAYER=$(echo $FILE | cut -d'/' -f3)
-          SERVICE=$(basename $FILE .yml)
-          
+          FILES=$(git diff --name-only HEAD^ HEAD | grep "deployments/\|src/" | head -n 1)
+          if [[ -z "$FILES" ]]; then
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          if [[ "$FILES" == src/* ]]; then
+            SERVICE=$(echo $FILES | cut -d'/' -f2)
+            ENV="dev" 
+            FILE_PATH="deployments/$ENV/services/$SERVICE.yml"
+          else
+            ENV=$(echo $FILES | cut -d'/' -f2)
+            SERVICE=$(basename $FILES .yml)
+            FILE_PATH=$FILES
+          fi
           echo "env=$ENV" >> $GITHUB_OUTPUT
-          echo "layer=$LAYER" >> $GITHUB_OUTPUT
           echo "service=$SERVICE" >> $GITHUB_OUTPUT
-          echo "le_path=$FILE" >> $GITHUB_OUTPUT
+          echo "file_path=$FILE_PATH" >> $GITHUB_OUTPUT
+          echo "has_changes=true" >> $GITHUB_OUTPUT
 
-  deploy:
-    name: "Deploy ${{ needs.detect.outputs.env }} / ${{ needs.detect.outputs.service }}"
+  # ----------------------------------------------------------------------------
+  # STAGE 2: BUILD & PUSH (CI)
+  # ----------------------------------------------------------------------------
+  build-and-push:
+    name: "CI - Build & Push"
     needs: detect
-    if: needs.detect.outputs.le_path != ''
+    if: needs.detect.outputs.has_changes == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }} # ARN của IAM Role dành cho GitHub
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build & Push
+        run: |
+          REPO_NAME="${{ needs.detect.outputs.service }}"
+          REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          IMAGE_TAG="${{ github.sha }}"
+          docker build -t $REGISTRY/$REPO_NAME:$IMAGE_TAG ./src/${{ needs.detect.outputs.service }}
+          docker push $REGISTRY/$REPO_NAME:$IMAGE_TAG
+
+  # ----------------------------------------------------------------------------
+  # STAGE 3: PLAN (Dry Run)
+  # ----------------------------------------------------------------------------
+  plan:
+    name: "CD - Terraform Plan"
+    needs: [detect, build-and-push]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+      - name: "Terraform Plan"
+        run: |
+          cd engine
+          STATE_KEY="${{ needs.detect.outputs.env }}/services/${{ needs.detect.outputs.service }}/terraform.tfstate"
+          terraform init -backend-config="key=$STATE_KEY"
+          terraform plan -out=tfplan \
+            -var="common_config_path=../deployments/${{ needs.detect.outputs.env }}/common.yml" \
+            -var="config_path=../${{ needs.detect.outputs.file_path }}" \
+            -var="image_tag=${{ github.sha }}"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          
+      - name: "Upload Plan Artifact"
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ needs.detect.outputs.service }}
+          path: engine/tfplan
+
+  # ----------------------------------------------------------------------------
+  # STAGE 4: APPLY (Deployment with Approval)
+  # ----------------------------------------------------------------------------
+  deploy:
+    name: "CD - Terraform Apply"
+    needs: [detect, plan]
+    runs-on: ubuntu-latest
+    # Băt buộc phê duyệt nếu là môi trường Prod (Cấu hình trên GitHub UI)
+    environment: ${{ needs.detect.outputs.env }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: "Download Plan Artifact"
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ needs.detect.outputs.service }}
+          path: engine/
 
       - name: "Setup Terraform"
         uses: hashicorp/setup-terraform@v3
-
-      - name: "Terraform Execution"
+      - name: "Terraform Apply"
         run: |
-          # Xác định engine cần chạy (infrastructure hoặc platform)
-          ENGINE_DIR="engine"
-          
-            
-          
-          
-          cd $ENGINE_DIR
-          
-          # Khởi tạo với State Key riêng biệt cho từng dịch vụ
-          STATE_KEY="${{ needs.detect.outputs.env }}/${{ needs.detect.outputs.layer }}/${{ needs.detect.outputs.service }}/terraform.tfstate"
-          
-          terraform init -backend-cong="key=$STATE_KEY"
-          
-          # Chạy Apply với việc trộn 2 le cong (common + service)
-          COMMON_CONFIG="../deployments/${{ needs.detect.outputs.env }}/common.yml"
-          SERVICE_CONFIG="../${{ needs.detect.outputs.le_path }}"
-          
-          terraform apply -auto-approve \
-            -var="common_cong_path=$COMMON_CONFIG" \
-            -var="cong_path=$SERVICE_CONFIG"
+          cd engine
+          STATE_KEY="${{ needs.detect.outputs.env }}/services/${{ needs.detect.outputs.service }}/terraform.tfstate"
+          terraform init -backend-config="key=$STATE_KEY"
+          terraform apply -auto-approve tfplan
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

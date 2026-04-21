@@ -82,4 +82,5 @@ module "ecs_service" {
   vpc_cidr_block  = local.infra_vpc_cidr_block
   cluster_arn     = try(module.ecs_cluster[0].cluster_arn, null)
   listener_arn    = try(module.alb[0].http_tcp_listener_arns[0], null)
+  image_tag       = var.image_tag
 }
