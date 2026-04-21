@@ -1,0 +1,33 @@
+# ==============================================================================
+# DATABASE CONFIGURATION (RDS)
+# ==============================================================================
+rds:
+  enabled: true
+  identifier: "prod-postgres-db"
+  
+  # Engine & Resources
+  engine: "postgres"
+  engine_version: "15.3"
+  instance_class: "db.t3.micro"
+  allocated_storage: 20
+  # max_allocated_storage: 100
+  # storage_type: "gp3"
+  
+  # Auth
+  db_name: "app_db"
+  username: "dbadmin"
+  # manage_master_user_password: true  # Dùng Secrets Manager (Khuyên dùng)
+  
+  # High Availability & Backup
+  multi_az: false # Bật lên true cho Prod
+  backup_retention_period: 7
+  # backup_window: "03:00-04:00"
+  # maintenance_window: "Mon:00:00-Mon:03:00"
+  
+  # Protection
+  skip_final_snapshot: true # Đổi thành false cho Prod
+  deletion_protection: false # Đổi thành true cho Prod
+  
+  # Networking
+  # port: 5432
+  # publicly_accessible: false

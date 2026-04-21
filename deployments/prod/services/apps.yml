@@ -1,0 +1,40 @@
+# ==============================================================================
+# MICROSERVICES APPLICATION CONFIGURATION (ECS Service)
+# ==============================================================================
+service:
+  enabled: true
+  app_name: "customer-api"
+  service_type: "api"
+  
+  # Compute Resources
+  cpu: 256
+  memory: 512
+  container_port: 8080
+  
+  # Scaling & Capacity
+  min_capacity: 1
+  max_capacity: 3
+  # desired_count: 1
+  # deployment_maximum_percent: 200
+  # deployment_minimum_healthy_percent: 100
+
+  # Networking & Load Balancing
+  health_check_path: "/api/health"
+  # health_check_grace_period_seconds: 60
+  # deregistration_delay: 300
+  
+  # Task Definition Details
+  # entry_point: ["npm", "start"]
+  # command: []
+  # environment_variables:
+  #   NODE_ENV: "production"
+  #   DB_HOST: "rds-endpoint"
+  # secrets:
+  #   DB_PASSWORD: "arn:aws:secretsmanager:..."
+
+  # Service Storage
+  # mount_points: []
+  # volumes: []
+
+  # Deployment Strategy
+  deployment_strategy: "rolling_update" # "blue_green"

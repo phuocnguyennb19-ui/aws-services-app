@@ -1,0 +1,38 @@
+# ==============================================================================
+# ECS CLUSTER & LOAD BALANCER CONFIGURATION
+# ==============================================================================
+ecs_cluster:
+  enabled: true
+  cluster_name: "prod-core-cluster"
+  
+  # Monitoring & Capabilities
+  container_insights: true
+  # capacity_providers: ["FARGATE", "FARGATE_SPOT"]
+  # default_capacity_provider_strategy:
+  #   - capacity_provider: "FARGATE_SPOT"
+  #     weight: 1
+
+alb:
+  enabled: true
+  name: "prod-main-alb"
+  internal: false
+  
+  # Timing & Performance
+  idle_timeout: 60
+  # enable_deletion_protection: false
+  # drop_invalid_header_fields: true
+  
+  # Logging & Monitoring
+  # access_logs:
+  #   bucket: "prod-alb-logs"
+  #   prefix: "main-alb"
+  #   enabled: false
+
+  # Security Groups
+  # security_group_ingress_rules:
+  #   all_http:
+  #     from_port: 80
+  #     to_port: 80
+  #     ip_protocol: "tcp"
+  #     description: "HTTP from anywhere"
+  #     cidr_ipv4: "0.0.0.0/0"

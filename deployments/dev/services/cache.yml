@@ -1,0 +1,27 @@
+# ==============================================================================
+# CACHE CONFIGURATION (ElastiCache Redis)
+# ==============================================================================
+elasticache:
+  enabled: true
+  cluster_id: "dev-redis-cluster"
+  
+  # Engine & Resources
+  engine: "redis"
+  node_type: "cache.t3.micro"
+  num_cache_nodes: 1
+  engine_version: "7.0"
+  port: 6379
+  
+  # Configuration
+  # parameter_group_name: "default.redis7"
+  # subnet_group_name: "vpc-cache-subnet-group"
+  
+  # Security
+  # transit_encryption_enabled: true
+  # at_rest_encryption_enabled: true
+  # auth_token: "Mật khẩu Redis"
+  
+  # Maintenance & Backup
+  # maintenance_window: "sun:05:00-sun:09:00"
+  # snapshot_window: "00:00-05:00"
+  # snapshot_retention_limit: 5

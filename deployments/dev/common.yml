@@ -1,0 +1,9 @@
+# ==============================================================================
+# COMMON SETTINGS - DEV ENVIRONMENT
+# ==============================================================================
+global:
+  environment: "dev"
+  region: "us-east-1"
+  project: "SM-Platform"
+  aws_profile: "personal-dev"
+  terraform_state_bucket: "sm-terraform-statefile-dev"

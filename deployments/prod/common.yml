@@ -1,0 +1,9 @@
+# ==============================================================================
+# COMMON SETTINGS - PROD ENVIRONMENT
+# ==============================================================================
+global:
+  environment: "prod"
+  region: "us-east-1"
+  project: "SM-Platform"
+  aws_profile: "personal-prod"
+  terraform_state_bucket: "sm-terraform-statefile-prod"

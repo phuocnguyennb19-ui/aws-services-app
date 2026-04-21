@@ -1,0 +1,77 @@
+name: "Smart Deploy - Multi-Env Orchestrator"
+
+on:
+  push:
+    branches: [ "master" ]
+    paths:
+      - 'deployments/**'
+
+jobs:
+  detect:
+    name: "Identify Changed Service"
+    runs-on: ubuntu-latest
+    outputs:
+      env: ${{ steps.parse.outputs.env }}
+      layer: ${{ steps.parse.outputs.layer }}
+      service: ${{ steps.parse.outputs.service }}
+      le_path: ${{ steps.parse.outputs.le_path }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: "Parse Changed Files"
+        id: parse
+        run: |
+          # Lấy danh sách le thay đổi trong commit mới nhất
+          FILES=$(git diff --name-only HEAD^ HEAD | grep "deployments/" | grep ".yml")
+          
+          # Lấy le đầu tiên để xử lý (Giả sử 1 lần push 1 luồng)
+          FILE=$(echo $FILES | head -n 1)
+          
+          # Ví dụ path: deployments/dev/services/api.yml
+          ENV=$(echo $FILE | cut -d'/' -f2)
+          LAYER=$(echo $FILE | cut -d'/' -f3)
+          SERVICE=$(basename $FILE .yml)
+          
+          echo "env=$ENV" >> $GITHUB_OUTPUT
+          echo "layer=$LAYER" >> $GITHUB_OUTPUT
+          echo "service=$SERVICE" >> $GITHUB_OUTPUT
+          echo "le_path=$FILE" >> $GITHUB_OUTPUT
+
+  deploy:
+    name: "Deploy ${{ needs.detect.outputs.env }} / ${{ needs.detect.outputs.service }}"
+    needs: detect
+    if: needs.detect.outputs.le_path != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Setup Terraform"
+        uses: hashicorp/setup-terraform@v3
+
+      - name: "Terraform Execution"
+        run: |
+          # Xác định engine cần chạy (infrastructure hoặc platform)
+          ENGINE_DIR="engine"
+          
+            
+          
+          
+          cd $ENGINE_DIR
+          
+          # Khởi tạo với State Key riêng biệt cho từng dịch vụ
+          STATE_KEY="${{ needs.detect.outputs.env }}/${{ needs.detect.outputs.layer }}/${{ needs.detect.outputs.service }}/terraform.tfstate"
+          
+          terraform init -backend-cong="key=$STATE_KEY"
+          
+          # Chạy Apply với việc trộn 2 le cong (common + service)
+          COMMON_CONFIG="../deployments/${{ needs.detect.outputs.env }}/common.yml"
+          SERVICE_CONFIG="../${{ needs.detect.outputs.le_path }}"
+          
+          terraform apply -auto-approve \
+            -var="common_cong_path=$COMMON_CONFIG" \
+            -var="cong_path=$SERVICE_CONFIG"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
