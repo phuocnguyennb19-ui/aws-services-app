@@ -66,7 +66,7 @@ module "alb" {
 # Note: Cluster is now managed in Base Compute sub-engine, but we maintain this for local overrides if needed
 module "ecs_cluster" {
   count         = lookup(local.config.ecs, "enabled", false) ? 1 : 0
-  source        = "../../terraform-module/modules/ecs-cluster"
+  source        = "../../terraform-module/modules/ecs_cluster"
   vpc_id        = local.infra_vpc_id
   config_file   = basename(var.config_path)
   global_config = local.config.global
@@ -108,7 +108,7 @@ module "elasticache" {
 # 13. Application Runner (ECS Service)
 module "ecs_service" {
   count           = lookup(local.config.service, "enabled", false) ? 1 : 0
-  source          = "../../terraform-module/modules/ecs-service"
+  source          = "../../terraform-module/modules/ecs_service"
   vpc_id          = local.infra_vpc_id
   private_subnets = local.infra_private_subnets
   vpc_cidr_block  = local.infra_vpc_cidr_block
